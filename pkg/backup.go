@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -161,8 +162,7 @@ func processChunk(wg *sync.WaitGroup, i int, path, containerName string, objClie
 	sha256hashes := make(chan [][32]byte)
 	go calcSha256Hash(myChunk, sha256hashes)
 
-	var compressedChunk []byte
-	rb := bytes.NewBuffer(compressedChunk)
+	rb := &bytes.Buffer{}
 	zf, err := zlib.NewWriterLevel(rb, compressionLevel)
 	if err != nil {
 		errChan <- fmt.Errorf("failed to set zlib %d compression level: %s", compressionLevel, err)
@@ -195,6 +195,8 @@ func processChunk(wg *sync.WaitGroup, i int, path, containerName string, objClie
 		}
 		break
 	}
+	// free the compressed chunk memory
+	rb.Reset()
 
 	if err != nil {
 		errChan <- fmt.Errorf("failed to upload %q/%q data: %s", containerName, chunkPath, err)
@@ -206,7 +208,7 @@ func processChunk(wg *sync.WaitGroup, i int, path, containerName string, objClie
 	sha256meta.Sha256s[i] = <-sha256hashes
 	sha256meta.Unlock()
 
-	compressedChunk = nil
+	// free the chunk memory
 	myChunk = nil
 
 	// free up the heap
@@ -324,6 +326,9 @@ L:
 	log.Printf("Uploading the rest and the metadata")
 	waitGroup.Wait()
 	imageData.readCloser.Close()
+
+	// return used memory into the OS, because sha256meta operation can consume a lot of memory
+	debug.FreeOSMemory()
 
 	// write _sha256file
 	buf, err := json.MarshalIndent(&sha256meta, "", "  ")
