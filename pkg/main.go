@@ -16,6 +16,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/utils/client"
 	"github.com/gophercloud/utils/openstack/clientconfig"
+	"github.com/sapcc/go-bits/logg"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -89,6 +90,9 @@ func initLogger() {
 
 		// no need to close the log: https://golang.org/pkg/runtime/#SetFinalizer
 		l = llog.New(logFile, log.Prefix(), log.Flags())
+
+		logg.SetLogger(l)
+		logg.ShowDebug = true
 
 		if viper.GetBool("debug") {
 			// write log into stderr and log file
